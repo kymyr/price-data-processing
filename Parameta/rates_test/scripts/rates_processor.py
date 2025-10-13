@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class RatesProcessor:
-    """Processes FX rate data and generates converted prices."""
+    """Processes datasets and generates converted prices."""
 
     def __init__(self, data_dir: Path, results_dir: Path, verbose: bool = False):
         """Initialize processor with data and results directories."""
@@ -21,7 +21,7 @@ class RatesProcessor:
 
     # Step 1: Load data
     def load_data(self):
-        """Load datasets and validate structure."""
+        """Load datasets."""
         try:
             self._log("Loading data...")
             self.ccy_df = pd.read_csv(self.data_dir / "rates_ccy_data.csv")
@@ -68,11 +68,11 @@ class RatesProcessor:
         except ValueError as e:
             if "keys must be sorted" not in str(e):
                 raise
-            self._log("merge_asof failed (keys must be sorted) – retrying per pair...", level="WARN")
+            self._log("merge_asof failed (keys must be sorted), retrying per pair...", level="WARN")
             return self._merge_per_pair(tolerance)
 
     def _merge_per_pair(self, tolerance: pd.Timedelta) -> pd.DataFrame:
-        """Fallback: per-currency-pair merge for robustness."""
+        """Fallback: per-currency-pair merge."""
         start = time.time()
         merged_groups = []
 
