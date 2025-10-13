@@ -48,7 +48,7 @@ Conversion rules:
 ## Run
 Run the pipeline from the command line from folder root:
 
-`python Parameta/scripts/main_rates.py [--data-dir DATA_DIR] [--results-dir RESULTS_DIR] [--verbose]`
+`python Parameta/rates_test/scripts/main_rates.py [--data-dir DATA_DIR] [--results-dir RESULTS_DIR] [--verbose]`
 
 Optional args: 
 
@@ -59,7 +59,7 @@ Optional args:
 --verbose: Prints detailed INFO
 
 ```
-python scripts/main_rates.py
+python Parameta/rates_test/scripts/main_rates.py
 ```
 
 Notes:
