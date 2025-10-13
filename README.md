@@ -1,8 +1,13 @@
 # price-data-processing
+## Install dependencies
+```
+pip install -r requirements.txt
+```
 
 ## Directory Structure
 ```
 Parameta/
+├── requirements.txt
 └── rates_test/
     ├── data/
     │   ├── rates_ccy_data.csv
