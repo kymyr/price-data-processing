@@ -1,6 +1,7 @@
 import os
 import time
 import pandas as pd
+import numpy as np
 from pathlib import Path
 
 
@@ -44,7 +45,10 @@ class StdevProcessor:
 
     def compute_rolling_stdev(self, df, window_hours=20):
         """
-        Compute rolling stdev for each security_id over the full span of the dataset.
+        Compute rolling standard deviation per security_id over a full hourly range.
+        Even missing snaps must have a value (computed using the most recent
+        20 valid values before that time).
+
         Returns a DataFrame with snap_time, security_id, bid_stdev, mid_stdev, ask_stdev.
         """
         results = []
@@ -55,36 +59,33 @@ class StdevProcessor:
         for sid in security_ids:
             grp = df[df["security_id"] == sid].set_index("snap_time").sort_index()
 
+            # Create complete hourly timeline
             sec_min = grp.index.min()
             sec_max = grp.index.max()
             hourly_index = pd.date_range(start=sec_min, end=sec_max, freq="h", name="snap_time")
 
-            # gruop hourly — missing hours become None
-            grp_hourly = grp.reindex(hourly_index)
+            grp_full = grp.reindex(hourly_index)[["bid", "mid", "ask"]]
 
-            # rolling stdev with full window only
-            rolling = grp_hourly[["bid", "mid", "ask"]].rolling(
-                window=window_hours, min_periods=window_hours
-            ).std()
+            res = pd.DataFrame(index=hourly_index)
+            for col in ["bid", "mid", "ask"]:
+                values = grp_full[col].to_numpy()
+                stdevs = np.full_like(values, np.nan, dtype=float)
 
-            # only keep full contiguous windows (no None)
-            out = rolling.dropna(how="any").copy()
-            if out.empty:
-                continue
+                valid_idx = np.where(~np.isnan(values))[0]
 
-            out["security_id"] = sid
-            out = (
-                out.reset_index()
-                .rename(
-                    columns={
-                        "index": "snap_time",
-                        "bid": "bid_stdev",
-                        "mid": "mid_stdev",
-                        "ask": "ask_stdev",
-                    }
-                )
-            )
-            results.append(out[["snap_time", "security_id", "bid_stdev", "mid_stdev", "ask_stdev"]])
+                # For each hour, look back to find 20 valid values
+                for i in range(len(values)):
+                    # indices of valid prices <= i
+                    valid_before = valid_idx[valid_idx <= i]
+                    if len(valid_before) < window_hours:
+                        continue
+                    recent_20 = valid_before[-window_hours:]
+                    stdevs[i] = np.std(values[recent_20], ddof=1)
+
+                res[f"{col}_stdev"] = stdevs
+
+            res["security_id"] = sid
+            results.append(res.reset_index().rename(columns={"index": "snap_time"}))
 
         if results:
             df_out = pd.concat(results, ignore_index=True)
@@ -92,6 +93,8 @@ class StdevProcessor:
             df_out = pd.DataFrame(
                 columns=["snap_time", "security_id", "bid_stdev", "mid_stdev", "ask_stdev"]
             )
+
+        df_out = df_out.round({"bid_stdev": 3, "mid_stdev": 3, "ask_stdev": 3})
 
         self._log(f"Computed {len(df_out)} result rows in {(time.time() - tic)*1000:.0f} ms")
         return df_out
