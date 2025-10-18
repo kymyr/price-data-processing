@@ -2,6 +2,7 @@ import argparse
 import os
 from pathlib import Path
 from rates_processor import RatesProcessor
+import sys
 
 
 def main():
