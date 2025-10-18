@@ -83,16 +83,13 @@ class RatesProcessor:
         - not_converted: Conversion not required; new_price = price.
         - converted: Conversion applied using spot_mid_rate and conversion_factor.
         - estimated_spot_rate: Spot rate was missing; used most recent or median value.
-        - missing_spot_rate: Spot rate missing and cannot estimate; new_price = NaN.
-        - missing_conversion_factor: Conversion factor missing; new_price = NaN.
         - estimated_conversion_factor: Conversion factor estimated from median of ccy_pair group and used successfully.
         - insufficient_data: Neither spot nor conversion factor available; new_price = NaN.
-        - ok: Successful conversion with both spot and conversion factor.
         """
         merged = df.merge(self.ccy_df, on="ccy_pair", how="left")
         merged["convert_price"] = merged["convert_price"].astype(str).str.lower().map({"true": True, "false": False})
 
-        # Precompute median conversion factors per ccy_pair
+        # Median conversion factor per ccy_pair
         median_conv = self.ccy_df.groupby("ccy_pair")["conversion_factor"].median().to_dict()
 
         new_prices = []
@@ -109,26 +106,24 @@ class RatesProcessor:
                 new_status.append("not_converted")
                 continue
 
-            # Try to use conversion_factor
-            used_median = False
+            # Fallback to median conversion factor if missing
+            used_median_cf = False
             if pd.isna(conv_factor):
                 conv_factor = median_conv.get(row["ccy_pair"], np.nan)
                 if not pd.isna(conv_factor):
-                    used_median = True
+                    used_median_cf = True
 
-            # Determine if we have sufficient data
-            if pd.isna(conv_factor) or pd.isna(spot):
+            # Check if sufficient data exists
+            if pd.isna(spot) or pd.isna(conv_factor):
                 new_prices.append(np.nan)
                 new_status.append("insufficient_data")
                 continue
 
-            # Compute new_price
+            # Compute new price
             new_prices.append((price / conv_factor) + spot)
 
-            # Determine conversion status
-            if row["conversion_status"] == "estimated_spot_rate":
-                new_status.append("estimated_spot_rate")
-            elif used_median:
+            # Determine status
+            if used_median_cf:
                 new_status.append("estimated_conversion_factor")
             else:
                 new_status.append("converted")
@@ -137,7 +132,6 @@ class RatesProcessor:
         merged["conversion_status"] = new_status
 
         return merged
-
 
     def save_results(self, df):
         os.makedirs(self.results_dir, exist_ok=True)
